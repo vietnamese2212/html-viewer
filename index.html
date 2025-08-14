@@ -2,68 +2,163 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>HTML Viewer and Printer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hồ sơ xuất hàng</title>
     <style>
-        /* CSS tối giản để không can thiệp vào style từ AppSheet */
-        body {
-            margin: 0;
-            padding: 15px;
-            font-family: Arial, sans-serif;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
         }
-        /* Class này dùng để ẩn các thông báo không cần thiết khi in */
-        @media print {
-            .no-print {
-                display: none !important;
-            }
+        td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+            white-space: nowrap;
+        }
+        td.header { 
+            font-weight: bold;
+            background-color: #4CAF50 !important; /* Màu nền xanh lá */
+            color: white !important; /* Màu chữ trắng */
+        }
+        td:first-child {
+            font-weight: bold;
+        }
+        .subtotal {
+            background-color: #E3F2FD; /* Màu nền của dòng subtotal */
+            color: #333;
+            font-weight: bold; /* Tô đậm chữ */
+            text-align: left;
+        }
+        .subtotal td {
+            border: 1px solid #ddd;
+            font-weight: bold; /* Tô đậm chữ */
         }
     </style>
 </head>
 <body>
-
-    <!-- Vùng chứa nội dung HTML sẽ được chèn vào đây -->
-    <div id="content">
-        <p class="no-print" style="text-align: center; font-size: 1.2em; color: #555;">
-            Đang tải nội dung để in...
-        </p>
-    </div>
+    <h2>Hồ sơ xuất hàng</h2>
+    <table id="datatable">
+        <tr>
+            <td class="header">Số xe</td>
+            <td class="header">Ngày xuất</td>
+            <td class="header">Tên NPP</td>
+            <td class="header">Material</td>
+            <td class="header">Tên gọi tắt</td>
+            <td class="header">Thùng</td>
+            <td class="header">Mã Pallet</td>
+            <td class="header">Ghi chú</td>
+            <td class="header">Người xuất</td>
+            <td class="header">Biển số xe</td>
+        </tr>
+        <!-- Dữ liệu động sẽ được inject ở đây bởi JS -->
+    </table>
 
     <script>
-        // Hàm tự thực thi ngay khi trang được tải
-        (function() {
-            // Lấy các tham số từ URL của trang
-            const params = new URLSearchParams(window.location.search);
+        // Hàm đọc query parameters
+        function getQueryParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
 
-            // Kiểm tra xem có tham số 'html' trên URL không
-            if (params.has('html')) {
-                // Lấy giá trị của tham số 'html'
-                const encodedHtml = params.get('html');
-                
-                try {
-                    // Bước 1: Giải mã chuỗi HTML (đã được mã hóa bởi ENCODEURL trong AppSheet)
-                    const decodedHtml = decodeURIComponent(encodedHtml);
+        // Lấy dữ liệu từ query param 'data' (dữ liệu encode từ AppSheet)
+        const encodedData = getQueryParam('data');
+        if (encodedData) {
+            const data = JSON.parse(decodeURIComponent(encodedData)); // Giả sử dữ liệu là mảng JSON
 
-                    // Bước 2: Ghi nội dung HTML đã giải mã vào thẻ div#content
-                    document.getElementById('content').innerHTML = decodedHtml;
+            const table = document.getElementById('datatable');
+            const tbody = table.createTBody(); // Tạo tbody để thêm rows
 
-                    // Bước 3: Tự động gọi hộp thoại in sau khi nội dung đã được hiển thị
-                    // Thêm một khoảng trễ nhỏ (500ms) để đảm bảo trình duyệt đã render xong mọi thứ,
-                    // đặc biệt là các script tính toán subtotal.
-                    setTimeout(function() {
-                        window.print();
-                    }, 500); 
+            // Thêm dữ liệu vào bảng
+            data.forEach(item => {
+                const row = tbody.insertRow();
+                row.insertCell(0).innerText = item.soXe || '';
+                row.insertCell(1).innerText = item.ngayXuat || '';
+                row.insertCell(2).innerText = item.tenNPP || '';
+                row.insertCell(3).innerText = item.material || '';
+                row.insertCell(4).innerText = item.tenGoiTat || '';
+                row.insertCell(5).innerText = item.thung || '';
+                row.insertCell(6).innerText = item.maPallet || '';
+                row.insertCell(7).innerText = item.ghiChu || '';
+                row.insertCell(8).innerText = item.nguoiXuat || '';
+                row.insertCell(9).innerText = item.bienSoXe || '';
+            });
 
-                } catch (e) {
-                    // Xử lý lỗi nếu không giải mã được
-                    document.getElementById('content').innerHTML = '<p style="color: red; font-weight: bold;">Lỗi: Không thể hiển thị nội dung. Dữ liệu HTML gửi từ AppSheet có thể bị lỗi.</p>';
-                    console.error('Lỗi giải mã HTML:', e);
+            // Gọi hàm group và tính subtotal (tương tự script gốc)
+            groupAndCalculateSubtotal();
+        }
+
+        function groupAndCalculateSubtotal() {
+            const table = document.getElementById('datatable');
+            const rows = Array.from(table.rows).slice(1); // Lấy tất cả các dòng (trừ header)
+            const headerRow = table.rows[0]; // Dòng tiêu đề
+
+            // Sắp xếp các dòng theo Material (tăng dần) và đoạn đầu của Mã Pallet (tăng dần)
+            rows.sort((rowA, rowB) => {
+                const materialA = rowA.cells[3].innerText.trim();
+                const materialB = rowB.cells[3].innerText.trim();
+                const palletA = rowA.cells[6].innerText.split('_')[0].trim();
+                const palletB = rowB.cells[6].innerText.split('_')[0].trim();
+
+                if (materialA === materialB) {
+                    return palletA.localeCompare(palletB);
                 }
-            } else {
-                // Nếu không có tham số 'html', hiển thị hướng dẫn
-                document.getElementById('content').innerHTML = '<p class="no-print" style="text-align: center;">Trang này dùng để hiển thị và in HTML từ AppSheet.  
-Vui lòng truyền dữ liệu qua tham số URL theo định dạng: <strong>?html=...</strong></p>';
-            }
-        })();
-    </script>
+                return materialA.localeCompare(materialB);
+            });
 
+            let currentGroup = null;
+            let subtotal = 0;
+            let groupRows = [];
+            const tbody = table.querySelector('tbody');
+            tbody.innerHTML = ''; // Xóa để xây dựng lại
+
+            rows.forEach(row => {
+                const material = row.cells[3].innerText.trim();
+                const palletGroup = row.cells[6].innerText.split('_')[0].trim();
+                const groupKey = `${material}-${palletGroup}`;
+
+                if (currentGroup && currentGroup !== groupKey) {
+                    appendSubtotalRow(groupRows, subtotal, tbody);
+                    groupRows.forEach(r => tbody.appendChild(r));
+                    subtotal = 0;
+                    groupRows = [];
+                }
+
+                currentGroup = groupKey;
+                groupRows.push(row);
+                subtotal += parseFloat(row.cells[5].innerText.trim()) || 0;
+            });
+
+            if (groupRows.length > 0) {
+                appendSubtotalRow(groupRows, subtotal, tbody);
+                groupRows.forEach(r => tbody.appendChild(r));
+            }
+
+            // Đưa header lên đầu nếu cần
+            table.tBodies[0].insertBefore(headerRow, table.tBodies[0].firstChild);
+        }
+
+        function appendSubtotalRow(groupRows, subtotal, tbody) {
+            const newRow = document.createElement('tr');
+            for (let i = 0; i < groupRows[0].cells.length; i++) {
+                newRow.insertCell(i);
+            }
+
+            const material = groupRows[0].cells[3].innerText.trim();
+            const palletGroup = groupRows[0].cells[6].innerText.split('_')[0].trim();
+
+            newRow.cells[3].innerText = material;
+            newRow.cells[4].innerText = `Date: ${palletGroup}`;
+            newRow.cells[5].innerText = subtotal.toFixed(2);
+
+            newRow.classList.add('subtotal');
+            groupRows.push(newRow); // Thêm vào group để append sau
+        }
+
+        // Tự động gọi DOMContentLoaded để chạy script
+        document.addEventListener('DOMContentLoaded', function() {
+            // Đã gọi groupAndCalculateSubtotal() sau khi inject data
+        });
+    </script>
 </body>
 </html>
