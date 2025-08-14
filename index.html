@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>HTML Viewer</title>
+</head>
+<body>
+<script>
+const params = new URLSearchParams(window.location.search);
+const htmlContent = params.get('html');
+if (htmlContent) {
+    document.open();
+    document.write(decodeURIComponent(htmlContent));
+    document.close();
+    window.onload = () => {
+        window.print();
+    };
+} else {
+    document.body.innerHTML = "<h3>Không có nội dung HTML được truyền!</h3>";
+}
+</script>
+</body>
+</html>
