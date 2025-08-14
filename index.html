@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>HTML Viewer and Printer</title>
+    <style>
+        /* CSS tối giản để không can thiệp vào style từ AppSheet */
+        body {
+            margin: 0;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+        }
+        /* Class này dùng để ẩn các thông báo không cần thiết khi in */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Vùng chứa nội dung HTML sẽ được chèn vào đây -->
+    <div id="content">
+        <p class="no-print" style="text-align: center; font-size: 1.2em; color: #555;">
+            Đang tải nội dung để in...
+        </p>
+    </div>
+
+    <script>
+        // Hàm tự thực thi ngay khi trang được tải
+        (function() {
+            // Lấy các tham số từ URL của trang
+            const params = new URLSearchParams(window.location.search);
+
+            // Kiểm tra xem có tham số 'html' trên URL không
+            if (params.has('html')) {
+                // Lấy giá trị của tham số 'html'
+                const encodedHtml = params.get('html');
+                
+                try {
+                    // Bước 1: Giải mã chuỗi HTML (đã được mã hóa bởi ENCODEURL trong AppSheet)
+                    const decodedHtml = decodeURIComponent(encodedHtml);
+
+                    // Bước 2: Ghi nội dung HTML đã giải mã vào thẻ div#content
+                    document.getElementById('content').innerHTML = decodedHtml;
+
+                    // Bước 3: Tự động gọi hộp thoại in sau khi nội dung đã được hiển thị
+                    // Thêm một khoảng trễ nhỏ (500ms) để đảm bảo trình duyệt đã render xong mọi thứ,
+                    // đặc biệt là các script tính toán subtotal.
+                    setTimeout(function() {
+                        window.print();
+                    }, 500); 
+
+                } catch (e) {
+                    // Xử lý lỗi nếu không giải mã được
+                    document.getElementById('content').innerHTML = '<p style="color: red; font-weight: bold;">Lỗi: Không thể hiển thị nội dung. Dữ liệu HTML gửi từ AppSheet có thể bị lỗi.</p>';
+                    console.error('Lỗi giải mã HTML:', e);
+                }
+            } else {
+                // Nếu không có tham số 'html', hiển thị hướng dẫn
+                document.getElementById('content').innerHTML = '<p class="no-print" style="text-align: center;">Trang này dùng để hiển thị và in HTML từ AppSheet.  
+Vui lòng truyền dữ liệu qua tham số URL theo định dạng: <strong>?html=...</strong></p>';
+            }
+        })();
+    </script>
+
+</body>
+</html>
