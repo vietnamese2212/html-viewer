@@ -1,17 +1,166 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xem & In HTML</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hồ sơ xuất hàng</title>
+  <style>
+    :root { --border:#ddd; --head:#4CAF50; --headText:#fff; }
+    body { font-family: Arial, sans-serif; margin:16px; }
+    h2 { margin: 0 0 12px; }
+    table { width:100%; border-collapse:collapse; table-layout:auto; }
+    th, td { border:1px solid var(--border); padding:8px; vertical-align:top; }
+    th { background:var(--head); color:var(--headText); text-align:left; }
+    td.wrap { white-space:normal; word-break:break-word; }
+    tr.subtotal { background:#E3F2FD; font-weight:700; }
+    tr.subtotal td { border:1px solid var(--border); }
+    @media print {
+      body { margin:0; }
+      h2 { margin: 0 0 8px; }
+      a#printBtn { display:none; }
+    }
+    .toolbar { margin:8px 0 16px; }
+  </style>
 </head>
 <body>
+  <div class="toolbar">
+    <button id="printBtn" onclick="window.print()">In</button>
+  </div>
+  <h2>Hồ sơ xuất hàng</h2>
+  <table id="datatable">
+    <thead>
+      <tr>
+        <th>Số xe</th>
+        <th>Ngày xuất</th>
+        <th>Tên NPP</th>
+        <th>Material</th>
+        <th>Tên gọi tắt</th>
+        <th>Thùng</th>
+        <th>Mã Pallet</th>
+        <th>Ghi chú</th>
+        <th>Người xuất</th>
+        <th>Biển số xe</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
 <script>
-  const params = new URLSearchParams(window.location.search);
-  const html = decodeURIComponent(params.get('html') || '');
-  document.open();
-  document.write(html);
-  document.close();
+(function(){
+  // 1) Nhận JSON từ ?data=
+  const qs = new URLSearchParams(location.search);
+  const raw = qs.get("data");
+  if(!raw){ document.body.insertAdjacentHTML("beforeend","<p>Không có dữ liệu.</p>"); return; }
+
+  let rows = [];
+  try {
+    rows = JSON.parse(decodeURIComponent(raw)) || [];
+  } catch(e){
+    document.body.insertAdjacentHTML("beforeend","<p>Lỗi đọc dữ liệu.</p>");
+    return;
+  }
+
+  // 2) Chuẩn hóa: ép kiểu số cho Thùng, format ngày nếu cần
+  const fmtDate = v => {
+    // nhận ISO hoặc dd/MM/yyyy; không thay đổi nếu đã là text mong muốn
+    // bạn có thể chỉnh theo format bạn muốn
+    if(!v) return "";
+    // nếu là chuỗi ISO yyyy-mm-dd...
+    if(/^\d{4}-\d{2}-\d{2}/.test(v)) {
+      const d = new Date(v);
+      if(!isNaN(d)) {
+        const dd = String(d.getDate()).padStart(2,"0");
+        const mm = String(d.getMonth()+1).padStart(2,"0");
+        const yy = d.getFullYear();
+        return `${dd}/${mm}/${yy}`;
+      }
+    }
+    return String(v);
+  };
+
+  rows = rows.map(r => ({
+    "Số xe": r["Số xe"] ?? "",
+    "Ngày xuất": fmtDate(r["Ngày xuất"]),
+    "Tên NPP": r["Tên NPP"] ?? "",
+    "Material": String(r["Material"] ?? ""),
+    "Tên gọi tắt": r["Tên gọi tắt"] ?? "",
+    "Thùng": Number(String(r["Thùng"] ?? "0").replace(/,/g,"")) || 0,
+    "Mã Pallet": r["Mã Pallet"] ?? "",
+    "Ghi chú": r["Ghi chú"] ?? "",
+    "Người xuất": r["Người xuất"] ?? "",
+    "Biển số xe": r["Biển số xe"] ?? ""
+  }));
+
+  // 3) Sắp xếp theo Material rồi theo đoạn đầu của Mã Pallet (trước dấu "_")
+  rows.sort((a,b)=>{
+    const mA = a["Material"].trim();
+    const mB = b["Material"].trim();
+    if(mA !== mB) return mA.localeCompare(mB);
+    const pA = String(a["Mã Pallet"]).split("_")[0].trim();
+    const pB = String(b["Mã Pallet"]).split("_")[0].trim();
+    return pA.localeCompare(pB);
+  });
+
+  // 4) Render + subtotal theo (Material + prefix Mã Pallet)
+  const tbody = document.querySelector("#datatable tbody");
+
+  let curKey = null, buf = [], subtotal = 0;
+
+  const flushGroup = () => {
+    if(buf.length === 0) return;
+
+    // Dòng subtotal
+    const first = buf[0];
+    const mat = first["Material"];
+    const palletPrefix = String(first["Mã Pallet"]).split("_")[0].trim();
+
+    const trSub = document.createElement("tr");
+    trSub.className = "subtotal";
+    trSub.innerHTML = `
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>${mat}</td>
+      <td>Date: ${palletPrefix}</td>
+      <td>${subtotal.toFixed(2)}</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>`;
+    tbody.appendChild(trSub);
+
+    // Dòng data
+    for(const r of buf){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r["Số xe"]}</td>
+        <td>${r["Ngày xuất"]}</td>
+        <td>${r["Tên NPP"]}</td>
+        <td>${r["Material"]}</td>
+        <td>${r["Tên gọi tắt"]}</td>
+        <td>${r["Thùng"].toFixed(2)}</td>
+        <td>${r["Mã Pallet"]}</td>
+        <td class="wrap">${r["Ghi chú"]}</td>
+        <td>${r["Người xuất"]}</td>
+        <td>${r["Biển số xe"]}</td>`;
+      tbody.appendChild(tr);
+    }
+  };
+
+  for(const r of rows){
+    const key = r["Material"].trim() + "||" + String(r["Mã Pallet"]).split("_")[0].trim();
+    if(curKey !== null && key !== curKey){
+      flushGroup();
+      buf = [];
+      subtotal = 0;
+    }
+    curKey = key;
+    buf.push(r);
+    subtotal += r["Thùng"] || 0;
+  }
+  // nhóm cuối
+  flushGroup();
+})();
 </script>
 </body>
 </html>
