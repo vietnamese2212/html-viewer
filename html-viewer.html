@@ -3,180 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML Viewer & Print</title>
+    <title>HTML Print Viewer</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+            padding: 0;
+            font-family: Arial, sans-serif;
         }
         
-        .control-panel {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        
-        .control-panel h1 {
-            margin: 0 0 20px 0;
-            color: #333;
-        }
-        
-        .btn {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-right: 10px;
-            transition: background 0.3s;
-        }
-        
-        .btn:hover {
-            background: #45a049;
-        }
-        
-        .btn-print {
-            background: #2196F3;
-        }
-        
-        .btn-print:hover {
-            background: #1976D2;
-        }
-        
-        .content-area {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        
-        #htmlContent {
+        #content {
             width: 100%;
-            min-height: 600px;
-            border: none;
+            height: 100vh;
         }
         
         .loading {
-            text-align: center;
-            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 18px;
             color: #666;
         }
         
         .error {
-            background: #ffebee;
-            color: #c62828;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 16px;
+            color: #d32f2f;
+            text-align: center;
             padding: 20px;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
-        
-        @media print {
-            .control-panel {
-                display: none;
-            }
-            
-            .content-area {
-                box-shadow: none;
-                border-radius: 0;
-            }
-            
-            body {
-                margin: 0;
-                padding: 0;
-                background: white;
-            }
         }
     </style>
 </head>
 <body>
-    <div class="control-panel">
-        <h1>HTML Viewer & Print Tool</h1>
-        <button class="btn" onclick="loadHTML()">Tải HTML</button>
-        <button class="btn btn-print" onclick="printContent()">In trang (Ctrl+P)</button>
-    </div>
-
-    <div class="content-area">
-        <div id="loadingMessage" class="loading">
-            Đang tải nội dung HTML...
-        </div>
-        <iframe id="htmlContent" style="display: none;"></iframe>
-    </div>
+    <div id="loading" class="loading">Đang tải nội dung...</div>
+    <div id="content"></div>
 
     <script>
-        function getURLParameter(name) {
+        function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(name);
         }
 
         function loadHTML() {
-            const htmlParam = getURLParameter('html');
-            const iframe = document.getElementById('htmlContent');
-            const loading = document.getElementById('loadingMessage');
-            
-            if (htmlParam) {
-                try {
-                    // Decode URL-encoded HTML
-                    const decodedHTML = decodeURIComponent(htmlParam.replace(/percent/g, '%'));
-                    
-                    // Write HTML to iframe
-                    iframe.style.display = 'block';
-                    loading.style.display = 'none';
-                    
-                    iframe.onload = function() {
-                        const doc = iframe.contentDocument || iframe.contentWindow.document;
-                        doc.open();
-                        doc.write(decodedHTML);
-                        doc.close();
-                        
-                        // Auto-trigger print after a short delay
-                        setTimeout(() => {
-                            if (getURLParameter('autoprint') === 'true') {
-                                printContent();
-                            }
-                        }, 1000);
-                    };
-                    
-                    // Set src to about:blank to trigger onload
-                    iframe.src = 'about:blank';
-                    
-                } catch (error) {
-                    loading.innerHTML = `<div class="error">Lỗi khi tải HTML: ${error.message}</div>`;
-                }
-            } else {
-                loading.innerHTML = '<div class="error">Không tìm thấy tham số HTML trong URL</div>';
-            }
-        }
+            const htmlParam = getUrlParameter('html');
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('content');
 
-        function printContent() {
-            const iframe = document.getElementById('htmlContent');
-            if (iframe.style.display !== 'none') {
-                try {
-                    iframe.contentWindow.print();
-                } catch (error) {
-                    // Fallback: print the entire page
+            if (!htmlParam) {
+                loadingEl.innerHTML = '<div class="error">Không tìm thấy tham số HTML trong URL.<br>Định dạng: ?html=encoded_html_content</div>';
+                return;
+            }
+
+            try {
+                // Decode HTML content
+                const decodedHTML = decodeURIComponent(htmlParam.replace(/percent/g, '%'));
+                
+                // Hide loading
+                loadingEl.style.display = 'none';
+                
+                // Insert HTML content
+                contentEl.innerHTML = decodedHTML;
+                
+                // Auto print after content is loaded
+                setTimeout(() => {
                     window.print();
-                }
-            } else {
-                window.print();
+                }, 1500);
+                
+            } catch (error) {
+                loadingEl.innerHTML = `<div class="error">Lỗi khi tải HTML: ${error.message}</div>`;
             }
         }
 
-        // Auto-load HTML when page loads
-        window.addEventListener('DOMContentLoaded', function() {
-            loadHTML();
-        });
-
-        // Keyboard shortcut for print
+        // Load HTML when page is ready
+        document.addEventListener('DOMContentLoaded', loadHTML);
+        
+        // Handle print shortcuts
         document.addEventListener('keydown', function(e) {
             if (e.ctrlKey && e.key === 'p') {
                 e.preventDefault();
-                printContent();
+                window.print();
             }
         });
     </script>
