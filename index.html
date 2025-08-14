@@ -18,21 +18,21 @@
         }
         td.header { 
             font-weight: bold;
-            background-color: #4CAF50 !important; /* Màu nền xanh lá */
-            color: white !important; /* Màu chữ trắng */
+            background-color: #4CAF50 !important;
+            color: white !important;
         }
         td:first-child {
             font-weight: bold;
         }
         .subtotal {
-            background-color: #E3F2FD; /* Màu nền của dòng subtotal */
+            background-color: #E3F2FD;
             color: #333;
-            font-weight: bold; /* Tô đậm chữ */
+            font-weight: bold;
             text-align: left;
         }
         .subtotal td {
             border: 1px solid #ddd;
-            font-weight: bold; /* Tô đậm chữ */
+            font-weight: bold;
         }
         @media print {
             body {
@@ -63,11 +63,10 @@
             <td class="header">Người xuất</td>
             <td class="header">Biển số xe</td>
         </tr>
-        <!-- Dữ liệu động sẽ được inject ở đây -->
     </table>
 
     <script>
-        // Hàm đọc query parameter
+        // Đọc query parameter
         function getQueryParam(param) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(param);
@@ -75,13 +74,13 @@
 
         // Lấy dữ liệu từ query param 'data'
         const encodedData = getQueryParam('data');
+        const table = document.getElementById('datatable');
+        const tbody = table.createTBody();
+
         if (encodedData) {
             try {
-                const data = JSON.parse(decodeURIComponent(encodedData)); // Parse JSON từ query
-                const table = document.getElementById('datatable');
-                const tbody = table.createTBody();
-
-                // Thêm dữ liệu từ ket_qua_tra_cuu_xuat vào bảng
+                const data = JSON.parse(decodeURIComponent(encodedData));
+                // Inject dữ liệu vào bảng
                 data.forEach(item => {
                     const row = tbody.insertRow();
                     row.insertCell(0).innerText = item.so_xe || '';
@@ -89,31 +88,34 @@
                     row.insertCell(2).innerText = item.ten_npp || '';
                     row.insertCell(3).innerText = item.material || '';
                     row.insertCell(4).innerText = item.ten_goi_tat || '';
-                    row.insertCell(5).innerText = item.thung || '';
+                    row.insertCell(5).innerText = item.thung || 0;
                     row.insertCell(6).innerText = item.ma_pallet || '';
                     row.insertCell(7).innerText = item.ghi_chu || '';
                     row.insertCell(8).innerText = item.nguoi_xuat || '';
                     row.insertCell(9).innerText = item.bien_so_xe || '';
                 });
 
-                // Nhóm và tính subtotal
+                // Gọi hàm nhóm và tính subtotal từ code gốc
                 groupAndCalculateSubtotal();
             } catch (e) {
                 console.error('Error parsing data:', e);
-                alert('Lỗi khi đọc dữ liệu. Vui lòng kiểm tra lại.');
+                const errorRow = tbody.insertRow();
+                errorRow.insertCell(0).innerText = 'Lỗi: Không thể đọc dữ liệu. Vui lòng kiểm tra lại JSON.';
+                errorRow.cells[0].colSpan = 10;
             }
         } else {
-            console.warn('No data provided in query string');
+            const noDataRow = tbody.insertRow();
+            noDataRow.insertCell(0).innerText = 'Không có dữ liệu.';
+            noDataRow.cells[0].colSpan = 10;
         }
 
+        // Hàm nhóm và tính subtotal (giữ nguyên từ code gốc)
         function groupAndCalculateSubtotal() {
             const table = document.getElementById('datatable');
-            const rows = Array.from(table.rows).slice(1); // Lấy tất cả dòng trừ header
-            const headerRow = table.rows[0]; // Dòng tiêu đề
-            const tbody = table.querySelector('tbody');
-            tbody.innerHTML = ''; // Xóa để xây dựng lại
+            const rows = Array.from(table.rows).slice(1); // Lấy tất cả các dòng (trừ header).
+            const headerRow = table.rows[0]; // Dòng tiêu đề.
 
-            // Sắp xếp theo Material và đoạn đầu Mã Pallet
+            // Sắp xếp các dòng theo Material (tăng dần) và đoạn đầu của Mã Pallet (tăng dần).
             rows.sort((rowA, rowB) => {
                 const materialA = rowA.cells[3].innerText.trim();
                 const materialB = rowB.cells[3].innerText.trim();
@@ -129,6 +131,8 @@
             let currentGroup = null;
             let subtotal = 0;
             let groupRows = [];
+            const tbody = table.querySelector('tbody');
+            tbody.innerHTML = ''; // Xóa tất cả nội dung để xây dựng lại.
 
             rows.forEach(row => {
                 const material = row.cells[3].innerText.trim();
@@ -156,7 +160,9 @@
         }
 
         function appendSubtotalRow(groupRows, subtotal, tbody) {
-            const newRow = document.createElement('tr');
+            const table = document.getElementById('datatable');
+            const newRow = table.insertRow();
+
             for (let i = 0; i < groupRows[0].cells.length; i++) {
                 newRow.insertCell(i);
             }
@@ -164,9 +170,10 @@
             const material = groupRows[0].cells[3].innerText.trim();
             const palletGroup = groupRows[0].cells[6].innerText.split('_')[0].trim();
 
-            newRow.cells[3].innerText = material;
+            newRow.cells[3].innerText = `${material}`;
             newRow.cells[4].innerText = `Date: ${palletGroup}`;
-            newRow.cells[5].innerText = subtotal.toFixed(2);
+            newRow.cells[5].innerText = `${subtotal.toFixed(2)}`;
+
             newRow.classList.add('subtotal');
             groupRows.push(newRow);
         }
